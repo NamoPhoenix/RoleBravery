@@ -33,6 +33,7 @@ export const PlayerManagementPanel: React.FC<PlayerManagementPanelProps> = ({
     loadSamplePlayers,
     generateDraft,
     setViewMode,
+    setAppMode,
   } = useStore();
 
   const [newName, setNewName] = useState('');
@@ -61,6 +62,7 @@ export const PlayerManagementPanel: React.FC<PlayerManagementPanelProps> = ({
   const handleStartDraft = () => {
     generateDraft();
     setViewMode('stream');
+    setAppMode('classic');
   };
 
   const filteredPlayers = players.filter(p =>

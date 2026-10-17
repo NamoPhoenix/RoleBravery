@@ -1,28 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useStore } from './store/useStore';
 import { Navbar } from './components/Navbar';
 import { BroadcastView } from './components/BroadcastView';
 import { PlayerManagementPanel } from './components/PlayerManagementPanel';
 import { JsonPoolModal } from './components/JsonPoolModal';
 import { BulkImportModal } from './components/BulkImportModal';
+import { Lobby } from './components/Lobby';
+import { TournamentControl } from './components/tournament/TournamentControl';
+import { OverlayApp } from './components/OverlayApp';
+import { useRoomSync } from './sync/useRoomSync';
+import { isOverlayMode } from './sync/room';
 import { Tv } from 'lucide-react';
 
-export const App: React.FC = () => {
-  const { viewMode, setViewMode, matches, players, generateDraft } = useStore();
+export const App: React.FC = () => (isOverlayMode ? <OverlayApp /> : <ControlApp />);
+
+const ControlApp: React.FC = () => {
+  useRoomSync();
+  const { viewMode, setViewMode, appMode } = useStore();
   const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
-
-  // Initialize draft if players exist and no matches yet
-  useEffect(() => {
-    if (matches.length === 0 && players.length >= 10) {
-      generateDraft();
-    }
-  }, []);
+  const isClassic = appMode === 'classic';
 
   return (
     <div className="min-h-screen bg-[#020712] text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
       {/* Navbar: Visible in stream and panel modes */}
-      {viewMode !== 'overlay' && (
+      {!(isClassic && viewMode === 'overlay') && (
         <Navbar
           onOpenJsonModal={() => setIsJsonModalOpen(true)}
           onOpenBulkImport={() => setIsBulkImportOpen(true)}
@@ -31,18 +33,27 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col items-center justify-center">
-        {viewMode === 'stream' && (
+        {appMode === 'lobby' && (
+          <Lobby
+            onOpenBulkImport={() => setIsBulkImportOpen(true)}
+            onOpenJsonModal={() => setIsJsonModalOpen(true)}
+          />
+        )}
+
+        {appMode === 'tournament' && <TournamentControl />}
+
+        {isClassic && viewMode === 'stream' && (
           <BroadcastView onGoToPanel={() => setViewMode('panel')} />
         )}
 
-        {viewMode === 'panel' && (
+        {isClassic && viewMode === 'panel' && (
           <PlayerManagementPanel
             onOpenBulkImport={() => setIsBulkImportOpen(true)}
             onOpenJsonModal={() => setIsJsonModalOpen(true)}
           />
         )}
 
-        {viewMode === 'overlay' && (
+        {isClassic && viewMode === 'overlay' && (
           <div className="w-full h-screen flex flex-col items-center justify-center p-2 relative group">
             {/* Floating exit overlay button on hover */}
             <div className="absolute top-2 right-4 z-50 opacity-0 group-hover:opacity-100 transition-opacity">

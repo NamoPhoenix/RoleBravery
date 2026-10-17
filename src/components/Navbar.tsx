@@ -6,8 +6,12 @@ import {
   Code,
   RefreshCw,
   Radio,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Home,
+  Trophy,
 } from 'lucide-react';
+import { ObsLinkButton } from './ObsLinkButton';
+import { getFormat } from '../formats';
 
 interface NavbarProps {
   onOpenJsonModal: () => void;
@@ -18,13 +22,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenJsonModal,
   onOpenBulkImport,
 }) => {
-  const { viewMode, setViewMode, players, generateDraft } = useStore();
+  const { viewMode, setViewMode, players, generateDraft, appMode, setAppMode, tournament } = useStore();
+  const isClassic = appMode === 'classic';
+  const runningFormat = getFormat(tournament?.formatId);
 
   return (
     <header className="w-full bg-[#12141a]/95 border-b border-[#22252e] backdrop-blur-md sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
         {/* Logo / Brand */}
-        <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={() => setAppMode('lobby')}
+          className="flex items-center gap-2.5"
+          title="Zur Lobby"
+        >
           <div className="w-8 h-8 rounded-lg bg-[#1e222d] border border-slate-700 flex items-center justify-center">
             <span className="font-sans font-black text-slate-200 text-sm tracking-tighter">RB</span>
           </div>
@@ -36,10 +47,53 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
           </div>
-        </div>
+        </button>
 
-        {/* View Switcher Tabs */}
+        {/* Modus-Leiste: Lobby / Turnier */}
+        {!isClassic && (
+          <div className="flex items-center bg-[#050814] p-1 rounded-full border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setAppMode('lobby')}
+              className={`flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold transition-all ${
+                appMode === 'lobby'
+                  ? 'bg-sky-950/80 text-sky-300 border border-sky-600/60 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Home size={13} />
+              <span>Lobby</span>
+            </button>
+            {tournament && runningFormat && (
+              <button
+                type="button"
+                onClick={() => setAppMode('tournament')}
+                className={`flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold transition-all ${
+                  appMode === 'tournament'
+                    ? 'bg-sky-950/80 text-sky-300 border border-sky-600/60 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Trophy size={13} />
+                <span>{runningFormat.name}</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* View Switcher Tabs (klassischer Modus) */}
+        {isClassic && (
         <div className="flex items-center bg-[#050814] p-1 rounded-full border border-slate-800">
+          <button
+            type="button"
+            onClick={() => setAppMode('lobby')}
+            className="flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold transition-all text-slate-400 hover:text-slate-200"
+            title="Zurück zur Lobby"
+          >
+            <Home size={13} />
+            <span>Lobby</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setViewMode('stream')}
@@ -77,12 +131,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             title="Reine OBS Browser-Source Ansicht"
           >
             <Radio size={13} />
-            <span>OBS Overlay</span>
+            <span>Overlay-Vorschau</span>
           </button>
         </div>
+        )}
 
         {/* Action Tools */}
         <div className="flex items-center gap-2">
+          <ObsLinkButton compact />
           <button
             type="button"
             onClick={onOpenBulkImport}
@@ -103,7 +159,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* Quick Shuffle Button */}
-          <button
+          {isClassic && <button
             type="button"
             disabled={players.length < 10}
             onClick={() => {
@@ -114,7 +170,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <RefreshCw size={13} />
             <span>Shuffle</span>
-          </button>
+          </button>}
         </div>
       </div>
     </header>

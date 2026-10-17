@@ -18,11 +18,11 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const ROLE_ORDER: Role[] = ['top', 'jgl', 'mid', 'adc', 'sup'];
 
 export const ROLE_ICON_SRC: Record<Role, string> = {
-  top: '/role_icons/Top_icon.png',
-  jgl: '/role_icons/Jungle_icon.png',
-  mid: '/role_icons/Middle_icon.png',
-  adc: '/role_icons/Bottom_icon.png',
-  sup: '/role_icons/Support_icon.png',
+  top: `${import.meta.env.BASE_URL}role_icons/Top_icon.png`,
+  jgl: `${import.meta.env.BASE_URL}role_icons/Jungle_icon.png`,
+  mid: `${import.meta.env.BASE_URL}role_icons/Middle_icon.png`,
+  adc: `${import.meta.env.BASE_URL}role_icons/Bottom_icon.png`,
+  sup: `${import.meta.env.BASE_URL}role_icons/Support_icon.png`,
 };
 
 export const RoleIcon: React.FC<RoleIconProps> = ({ role, className = '', size = 20 }) => {

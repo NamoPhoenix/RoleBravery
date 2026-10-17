@@ -1,0 +1,17 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "$roomId": {
+        ".read": "$roomId.length >= 20 && $roomId.length <= 64",
+        ".write": "$roomId.length >= 20 && $roomId.length <= 64",
+        ".validate": "newData.hasChildren(['v', 'updatedAt', 'payload'])",
+        "v": { ".validate": "newData.isNumber()" },
+        "updatedAt": { ".validate": "newData.isNumber() && newData.val() <= now" },
+        "payload": { ".validate": "newData.isString() && newData.val().length < 500000" },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}

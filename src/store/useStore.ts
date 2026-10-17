@@ -1,6 +1,16 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist, StateStorage } from 'zustand/middleware';
 import { Player, ChampionPools, Match, Role, EloRating, ViewMode } from '../types';
+import { getFormat, TOURNAMENT_FORMATS } from '../formats';
+import {
+  createTournament,
+  rerollMatchChampions as rerollTournamentMatchChampions,
+  rerollPhase as rerollTournamentPhase,
+  setMatchWinner as setTournamentMatchWinner,
+  spinWheel as spinTournamentWheel,
+  TournamentState,
+} from '../engine/tournament';
+import { isOverlayMode } from '../sync/room';
 import { DEFAULT_CHAMPION_POOLS } from '../data/defaultChampions';
 import {
   generateMatchesFromPool,
@@ -9,7 +19,19 @@ import {
   balanceTenPlayers
 } from '../utils/balancer';
 
+export type AppMode = 'lobby' | 'classic' | 'tournament';
+export type OverlayView = 'bracket' | 'match';
+
+const UNDO_LIMIT = 30;
+
 export interface AppState {
+  // App-Modus & Turnier
+  appMode: AppMode;
+  selectedFormatId: string;
+  tournament: TournamentState | null;
+  tournamentHistory: TournamentState[];
+  overlayView: OverlayView;
+
   // Player Pool
   players: Player[];
   championPools: ChampionPools;
@@ -17,6 +39,19 @@ export interface AppState {
   benchPlayers: Player[];
   activeMatchIndex: number;
   viewMode: ViewMode;
+
+  // Actions - App / Turnier
+  setAppMode: (mode: AppMode) => void;
+  setSelectedFormatId: (id: string) => void;
+  setOverlayView: (view: OverlayView) => void;
+  startTournament: () => string | null;
+  endTournament: () => void;
+  setTournamentFocus: (phaseId: string, matchIdx?: number) => void;
+  setMatchWinner: (phaseId: string, matchIdx: number, teamIdx: number) => void;
+  spinWheel: (phaseId: string) => void;
+  rerollTournamentPhase: (phaseId: string) => void;
+  rerollTournamentChampions: (phaseId: string, matchIdx: number, playerId?: string) => void;
+  undoTournament: () => void;
 
   // Actions - Players
   addPlayer: (name: string, elo?: EloRating, roles?: Role[], bans?: string[]) => void;
@@ -57,9 +92,86 @@ const INITIAL_SAMPLE_PLAYERS: Player[] = [
   { id: 'p-10', name: 'BladeDancer', elo: 'mid', roles: ['top', 'mid', 'adc'], bans: ['Irelia'] },
 ];
 
+// Das Overlay darf den LocalStorage des Control-Panels nie überschreiben.
+const memoryStorage: StateStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+};
+
 export const useStore = create<AppState>()(
   persist(
-    (set, get) => ({
+    (set, get) => {
+      /** Turnier-Änderung mit Undo-Snapshot übernehmen. */
+      const commitTournament = (next: TournamentState | null) => {
+        const prev = get().tournament;
+        if (!prev || next === prev) return;
+        set(state => ({
+          tournament: next,
+          tournamentHistory: [...state.tournamentHistory, prev].slice(-UNDO_LIMIT),
+        }));
+      };
+      const withFormat = (fn: (t: TournamentState, f: NonNullable<ReturnType<typeof getFormat>>) => TournamentState) => {
+        const t = get().tournament;
+        const f = getFormat(t?.formatId);
+        if (!t || !f) return;
+        commitTournament(fn(t, f));
+      };
+
+      return {
+      appMode: 'lobby',
+      selectedFormatId: TOURNAMENT_FORMATS[0].id,
+      tournament: null,
+      tournamentHistory: [],
+      overlayView: 'match',
+
+      setAppMode: (mode) => set({ appMode: mode }),
+      setSelectedFormatId: (id) => set({ selectedFormatId: id }),
+      setOverlayView: (view) => set({ overlayView: view }),
+
+      startTournament: () => {
+        const { players, championPools, selectedFormatId } = get();
+        const format = getFormat(selectedFormatId);
+        if (!format) return 'Unbekanntes Format.';
+        if (players.length < format.entrants.min || players.length > format.entrants.max) {
+          return format.entrants.min === format.entrants.max
+            ? `Dieses Format braucht genau ${format.entrants.min} Spieler (aktuell ${players.length}).`
+            : `Dieses Format braucht ${format.entrants.min}–${format.entrants.max} Spieler (aktuell ${players.length}).`;
+        }
+        const tournament = createTournament(format, players, championPools);
+        set({ tournament, tournamentHistory: [], appMode: 'tournament', overlayView: 'match' });
+        return null;
+      },
+
+      endTournament: () => set({ tournament: null, tournamentHistory: [], appMode: 'lobby' }),
+
+      setTournamentFocus: (phaseId, matchIdx = 0) => {
+        const t = get().tournament;
+        if (!t) return;
+        // Fokus ist reine Ansicht – kein Undo-Snapshot
+        set({ tournament: { ...t, focus: { phaseId, matchIdx } } });
+      },
+
+      setMatchWinner: (phaseId, matchIdx, teamIdx) =>
+        withFormat((t, f) => setTournamentMatchWinner(t, f, get().championPools, phaseId, matchIdx, teamIdx)),
+
+      spinWheel: (phaseId) => withFormat((t, f) => spinTournamentWheel(t, f, get().championPools, phaseId)),
+
+      rerollTournamentPhase: (phaseId) =>
+        withFormat((t, f) => rerollTournamentPhase(t, f, get().championPools, phaseId)),
+
+      rerollTournamentChampions: (phaseId, matchIdx, playerId) =>
+        withFormat(t => rerollTournamentMatchChampions(t, get().championPools, phaseId, matchIdx, playerId)),
+
+      undoTournament: () => {
+        const history = get().tournamentHistory;
+        if (history.length === 0) return;
+        set({
+          tournament: history[history.length - 1],
+          tournamentHistory: history.slice(0, -1),
+        });
+      },
+
       players: INITIAL_SAMPLE_PLAYERS,
       championPools: DEFAULT_CHAMPION_POOLS,
       matches: [],
@@ -285,13 +397,23 @@ export const useStore = create<AppState>()(
           return { matches: updated };
         });
       },
-    }),
+    };
+    },
     {
       name: 'role-bravery-storage-v2',
+      storage: createJSONStorage(() => (isOverlayMode ? memoryStorage : localStorage)),
       partialize: (state) => ({
         players: state.players,
         championPools: state.championPools,
         viewMode: state.viewMode,
+        appMode: state.appMode,
+        selectedFormatId: state.selectedFormatId,
+        tournament: state.tournament,
+        tournamentHistory: state.tournamentHistory,
+        overlayView: state.overlayView,
+        matches: state.matches,
+        benchPlayers: state.benchPlayers,
+        activeMatchIndex: state.activeMatchIndex,
       }),
     }
   )

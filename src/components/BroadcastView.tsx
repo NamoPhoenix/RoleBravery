@@ -17,11 +17,14 @@ import {
 interface BroadcastViewProps {
   onGoToPanel: () => void;
   isOverlayOnly?: boolean;
+  /** Reine Anzeige (OBS-Overlay): keine Bedienelemente, füllt die 1920×1080-Bühne. */
+  readOnly?: boolean;
 }
 
 export const BroadcastView: React.FC<BroadcastViewProps> = ({
   onGoToPanel,
   isOverlayOnly = false,
+  readOnly = false,
 }) => {
   const {
     matches,
@@ -40,13 +43,14 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
 
   // Auto-generate draft if players exist and no matches yet
   useEffect(() => {
-    if (matches.length === 0 && players.length >= 10) {
+    if (!readOnly && matches.length === 0 && players.length >= 10) {
       generateDraft();
     }
-  }, [matches.length, players.length, generateDraft]);
+  }, [readOnly, matches.length, players.length, generateDraft]);
 
   // Keyboard navigation: ArrowLeft and ArrowRight to switch matches
   useEffect(() => {
+    if (readOnly) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
@@ -59,7 +63,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeMatchIndex, matches.length, setActiveMatchIndex]);
+  }, [readOnly, activeMatchIndex, matches.length, setActiveMatchIndex]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -111,6 +115,14 @@ ${redLines}`;
     setTimeout(() => setCopied(false), 2000);
   };
 
+  if (!currentMatch && readOnly) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-[64px] font-extrabold text-slate-300">
+        Gleich geht's los …
+      </div>
+    );
+  }
+
   if (!currentMatch) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] p-8 text-center bg-[#0e1015]">
@@ -147,13 +159,15 @@ ${redLines}`;
   return (
     <div
       className={`w-full flex flex-col items-center justify-center select-none bg-[#0a0b0e] text-slate-100 ${
-        isOverlayOnly ? 'p-0 h-screen' : 'p-2 sm:p-4'
+        readOnly ? 'p-0 h-full' : isOverlayOnly ? 'p-0 h-screen' : 'p-2 sm:p-4'
       }`}
     >
       {/* 16:9 Canvas Container (Matte Grautöne / Dark Neutral Charcoal) */}
       <div
         className={`w-full max-w-[1720px] bg-[#0e1015] ${
-          isOverlayOnly
+          readOnly
+            ? 'h-full max-w-none max-h-none rounded-none border-none'
+            : isOverlayOnly
             ? 'h-screen max-h-none rounded-none border-none'
             : 'aspect-[16/9] min-h-[640px] max-h-[92vh] border border-[#21242d] rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.85)]'
         } relative flex flex-col justify-between overflow-hidden`}
@@ -166,32 +180,32 @@ ${redLines}`;
           {/* Mitte: Exakt zentriert mit der Mittelachse des Spielfelds */}
           <div className="col-span-6 flex justify-center items-center">
             <div className="flex items-center gap-2 bg-[#191c24] border border-[#2a2d39] rounded-full px-3 py-1 shadow-inner">
-              <button
+              {!readOnly && <button
                 onClick={() => setActiveMatchIndex(Math.max(0, activeMatchIndex - 1))}
                 disabled={activeMatchIndex === 0}
                 className="p-1 rounded-full text-slate-400 hover:text-white disabled:opacity-20 transition-colors"
                 title="Vorheriges Match (◄)"
               >
                 <ChevronLeft size={16} />
-              </button>
+              </button>}
 
               <span className="text-xs font-mono font-bold tracking-widest text-slate-200 px-3 min-w-[95px] text-center">
                 MATCH {activeMatchIndex + 1} / {matches.length}
               </span>
 
-              <button
+              {!readOnly && <button
                 onClick={() => setActiveMatchIndex(Math.min(matches.length - 1, activeMatchIndex + 1))}
                 disabled={activeMatchIndex >= matches.length - 1}
                 className="p-1 rounded-full text-slate-400 hover:text-white disabled:opacity-20 transition-colors"
                 title="Nächstes Match (►)"
               >
                 <ChevronRight size={16} />
-              </button>
+              </button>}
             </div>
           </div>
 
           {/* Rechts: Funktionstasten */}
-          <div className="col-span-3 flex items-center justify-end gap-2">
+          <div className={`col-span-3 flex items-center justify-end gap-2 ${readOnly ? 'invisible' : ''}`}>
             <button
               onClick={handleRerollChampions}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1a1d26] hover:bg-[#232733] text-slate-200 border border-[#2d3240] shadow-sm transition-all active:scale-95"
@@ -260,7 +274,7 @@ ${redLines}`;
                 <BlueSplashCard
                   key={ap.player.id}
                   assignedPlayer={ap}
-                  onReroll={() => rerollPlayerChampion(activeMatchIndex, 'blue', ap.player.id)}
+                  onReroll={readOnly ? undefined : () => rerollPlayerChampion(activeMatchIndex, 'blue', ap.player.id)}
                 />
               ))}
             </div>
@@ -288,14 +302,14 @@ ${redLines}`;
                 <RedSplashCard
                   key={ap.player.id}
                   assignedPlayer={ap}
-                  onReroll={() => rerollPlayerChampion(activeMatchIndex, 'red', ap.player.id)}
+                  onReroll={readOnly ? undefined : () => rerollPlayerChampion(activeMatchIndex, 'red', ap.player.id)}
                 />
               ))}
             </div>
           </div>
 
           {/* BOTTOM SUBTLE FOOTER (Bans entfernt) */}
-          <div className="pt-2 border-t border-[#1c1f29] flex items-center justify-between text-[11px] text-slate-500 font-sans shrink-0">
+          <div className={`pt-2 border-t border-[#1c1f29] flex items-center justify-between text-[11px] text-slate-500 font-sans shrink-0 ${readOnly ? 'invisible' : ''}`}>
             <div>
               OBS Source: <span className="text-slate-400 font-mono">1920x1080</span> • Pfeiltasten <kbd className="px-1 py-0.5 rounded bg-[#181a22] border border-[#262a36] text-slate-300 font-mono">◄</kbd> <kbd className="px-1 py-0.5 rounded bg-[#181a22] border border-[#262a36] text-slate-300 font-mono">►</kbd> zum Match-Wechsel
             </div>
@@ -322,7 +336,7 @@ ${redLines}`;
 ────────────────────────────────────────────────────────────────────────── */
 interface CardProps {
   assignedPlayer: AssignedPlayer;
-  onReroll: () => void;
+  onReroll?: () => void;
 }
 
 const BlueSplashCard: React.FC<CardProps> = ({ assignedPlayer, onReroll }) => {
@@ -368,14 +382,14 @@ const BlueSplashCard: React.FC<CardProps> = ({ assignedPlayer, onReroll }) => {
           </span>
 
           {/* Reroll Symbol: immer auf der Innenseite, dezent sichtbar, bei Hover hervorgehoben */}
-          <button
+          {onReroll && <button
             type="button"
             onClick={onReroll}
             className="w-6 h-6 rounded-md bg-black/60 hover:bg-black/90 border border-slate-600/70 hover:border-slate-300 text-slate-300 hover:text-white transition-all flex items-center justify-center shadow-sm"
             title={`${champion.name} neu würfeln`}
           >
             <Dices size={13} />
-          </button>
+          </button>}
         </div>
       </div>
     </div>
@@ -410,14 +424,14 @@ const RedSplashCard: React.FC<CardProps> = ({ assignedPlayer, onReroll }) => {
         {/* Links (Innenseite zum VS): Reroll Symbol + Spielername */}
         <div className="flex items-center gap-2.5">
           {/* Reroll Symbol: immer auf der Innenseite, dezent sichtbar, bei Hover hervorgehoben */}
-          <button
+          {onReroll && <button
             type="button"
             onClick={onReroll}
             className="w-6 h-6 rounded-md bg-black/60 hover:bg-black/90 border border-slate-600/70 hover:border-slate-300 text-slate-300 hover:text-white transition-all flex items-center justify-center shadow-sm"
             title={`${champion.name} neu würfeln`}
           >
             <Dices size={13} />
-          </button>
+          </button>}
 
           <span className="font-sans font-bold text-[15px] sm:text-[17px] text-white tracking-wide drop-shadow-[0_1px_4px_rgba(0,0,0,0.95)] truncate max-w-[170px]">
             {player.name}
