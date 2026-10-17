@@ -45,14 +45,14 @@ Eine moderne Webapplikation für League of Legends Custom Games, die Spieler aut
 
 ### 5. Lobby & Turniermodus
 - **Hauptmenü / Lobby**: Modus wählen (Turnierformat oder „Klassisch“), Teilnehmer eintragen, Turnier starten.
-- **Fillmasters x Squid Game** (20 Spieler):
+- **Fillmaster** (20 Spieler):
   1. **Runde 1** – 4 Elo-balancierte 5v5-Teams (A–D), Matchups gelost (Match 1, Match 2), Bravery.
   2. **Runde 2** – die 10 Sieger werden neu gemischt (Team E vs Team F, Match 3), Bravery.
   3. **Wildcard** – animiertes Glücksrad zieht 1 der 5 Sieger, direkt fürs Finale gesetzt.
   4. **Halbfinale** – die übrigen 4 als zufällige Duos, 2v2, freie Champion-Wahl.
   5. **Duo-Duell** – 1v1 im Gewinner-Duo, der Sieger ist Finalist.
   6. **Finale** – Finalist vs Wildcard, 1v1. Der Sieger ist der **Fillmaster** (Sieger-Screen mit Konfetti).
-- Sieger anklicken → die nächste Phase wird automatisch gelost.
+- Sieger anklicken → die nächste Phase wird im Hintergrund gelost. Control-Panel und Overlay bleiben auf dem entschiedenen Match, bis du **„Weiter“** klickst (nächstes Match, nächste Phase, am Ende der Sieger-Screen).
 - **Rückgängig** macht die letzte Aktion rückgängig (Sieger, Glücksrad, Reroll).
 - **Rerolls** (Phase neu losen, Champions neu, einzelner Champion) sind möglich, solange in der Phase bzw. dem Match noch kein Ergebnis steht.
 - **Turnierbaum** im Control-Panel und im Overlay: Ausgeschiedene sind ausgegraut, Sieger hervorgehoben.
@@ -61,7 +61,7 @@ Eine moderne Webapplikation für League of Legends Custom Games, die Spieler aut
 - Control-Panel: `https://draft.namophoenix.com/?room=<id>`. Die Raum-ID wird automatisch erzeugt und gemerkt.
 - Overlay für OBS: `…/?room=<id>&overlay=1` (Button **„OBS-Link kopieren“**). Das Overlay ist randlos, read-only und auf 1920×1080 skaliert.
   - Mit `&bg=transparent` ist der Hintergrund transparent.
-- Im Control-Panel umschaltbar: Overlay zeigt **Aktuelles Match** oder **Turnierbaum**.
+- **„Turnierbaum einblenden“** (oder Taste **B**) legt den Turnierbaum im Overlay über das aktuelle Bild; erneut klicken blendet ihn wieder aus.
 - Sync über die **Firebase Realtime Database** (`rooms/<id>`). Ohne Firebase-Config läuft alles lokal (LocalStorage). Das Overlay funktioniert dann nur im selben Browser.
 - Die lange, zufällige Raum-ID ist der Zugriffsschutz: Wer den Link kennt, kann lesen und schreiben. Den Link nicht öffentlich posten.
 

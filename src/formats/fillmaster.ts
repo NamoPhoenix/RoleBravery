@@ -2,15 +2,15 @@ import { TournamentFormat } from './types';
 import { duel1v1, duo2v2, fromEntrants, pickedFrom, restOf, teamDraft5v5, wheelPick, winnersOf } from './presets';
 
 /**
- * Fillmasters x Squid Game (Season 1) – 20 Spieler.
+ * Fillmaster (Season 1) – 20 Spieler.
  *
  * R1 (4 Teams, 2 Matches) → R2 (Sieger neu gemischt) → Glücksrad zieht die
  * Wildcard → 2v2-Halbfinale der übrigen 4 → 1v1 im Gewinner-Duo →
  * Finale: Finalist vs Wildcard.
  */
-export const fillmastersSquidGame: TournamentFormat = {
-  id: 'fillmasters-squid-game',
-  name: 'Fillmasters x Squid Game',
+export const fillmaster: TournamentFormat = {
+  id: 'fillmaster',
+  name: 'Fillmaster',
   tagline: 'Season 1 · 20 Spieler · ein Fillmaster',
   description:
     'Zwei 5v5-Bravery-Runden, Glücksrad-Wildcard, 2v2-Halbfinale, 1v1-Duell und ein 1v1-Finale um den Titel.',

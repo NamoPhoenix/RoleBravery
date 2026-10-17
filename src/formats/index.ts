@@ -1,5 +1,5 @@
 import { TournamentFormat } from './types';
-import { fillmastersSquidGame } from './fillmastersSquidGame';
+import { fillmaster } from './fillmaster';
 
 export * from './types';
 
@@ -7,10 +7,17 @@ export * from './types';
  * Registry aller Turnierformate. Neues Format: Datei in diesem Ordner
  * anlegen und hier eintragen – siehe README "Neues Turnierformat anlegen".
  */
-export const TOURNAMENT_FORMATS: TournamentFormat[] = [fillmastersSquidGame];
+export const TOURNAMENT_FORMATS: TournamentFormat[] = [fillmaster];
 
-export const getFormat = (id: string | undefined): TournamentFormat | undefined =>
-  TOURNAMENT_FORMATS.find(f => f.id === id);
+/** Alte Format-IDs, damit gespeicherte Turniere weiter laden. */
+const LEGACY_FORMAT_IDS: Record<string, string> = {
+  'fillmasters-squid-game': 'fillmaster',
+};
+
+export const getFormat = (id: string | undefined): TournamentFormat | undefined => {
+  const resolved = id ? LEGACY_FORMAT_IDS[id] ?? id : id;
+  return TOURNAMENT_FORMATS.find(f => f.id === resolved);
+};
 
 /** Prüft ein Format auf offensichtliche Konfigurationsfehler. */
 export function validateFormat(format: TournamentFormat): string[] {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Check,
   CheckCircle2,
@@ -14,11 +14,15 @@ import {
   Trophy,
   Undo2,
   XCircle,
+  ArrowRight,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { getFormat, MatchPhaseDef, TournamentFormat, WheelPhaseDef } from '../../formats';
 import {
   canRerollPhase,
+  CHAMPION_FOCUS,
+  isFocusDecided,
+  nextFocus,
   describeSources,
   isSpinRevealed,
   playerMap,
@@ -39,12 +43,25 @@ export const TournamentControl: React.FC = () => {
   const tournament = useStore(s => s.tournament);
   const historyLength = useStore(s => s.tournamentHistory.length);
   const overlayView = useStore(s => s.overlayView);
-  const { setOverlayView, undoTournament, endTournament, setTournamentFocus } = useStore();
+  const { setOverlayView, undoTournament, endTournament, setTournamentFocus, advanceTournamentFocus } = useStore();
   const format = getFormat(tournament?.formatId);
   const spinning =
     !!tournament &&
     Object.values(tournament.phases).some(ps => ps.wheel?.spins.some(s => !isSpinRevealed(s, Date.now())));
   const now = useNow(spinning);
+
+  // Hotkey B: Turnierbaum im Overlay ein-/ausblenden
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'b' || e.key === 'B') {
+        const { overlayView: v, setOverlayView: setV } = useStore.getState();
+        setV(v === 'bracket' ? 'match' : 'bracket');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   if (!tournament || !format) {
     return (
@@ -57,8 +74,23 @@ export const TournamentControl: React.FC = () => {
     );
   }
 
-  const focusDef = format.phases.find(p => p.id === tournament.focus.phaseId) ?? format.phases[0];
+  const championFocused = tournament.focus.phaseId === CHAMPION_FOCUS;
+  const focusDef = championFocused
+    ? format.phases[format.phases.length - 1]
+    : (format.phases.find(p => p.id === tournament.focus.phaseId) ?? format.phases[0]);
   const players = playerMap(tournament);
+  const next = nextFocus(tournament, format);
+  const nextLabel = !next
+    ? null
+    : next.phaseId === CHAMPION_FOCUS
+      ? `${format.championTitle}-Screen`
+      : (() => {
+          const def = format.phases.find(p => p.id === next.phaseId)!;
+          const m = tournament.phases[next.phaseId].matches?.[next.matchIdx];
+          return m && m.label !== def.label ? `${def.label} · ${m.label}` : def.label;
+        })();
+  const decided = isFocusDecided(tournament, format);
+  const bracketShown = overlayView === 'bracket';
 
   return (
     <div className="w-full max-w-[1800px] mx-auto px-4 py-4 flex flex-col gap-4 text-slate-100">
@@ -69,29 +101,32 @@ export const TournamentControl: React.FC = () => {
           <div className="text-lg font-bold tracking-wide">{format.name}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center bg-[#050814] p-1 rounded-full border border-slate-800">
-            <span className="px-2 text-[11px] text-slate-500 uppercase tracking-wider">Overlay</span>
-            {(
-              [
-                ['match', 'Aktuelles Match', MonitorPlay],
-                ['bracket', 'Turnierbaum', GitBranch],
-              ] as const
-            ).map(([view, label, Icon]) => (
-              <button
-                key={view}
-                type="button"
-                onClick={() => setOverlayView(view)}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  overlayView === view
-                    ? 'bg-sky-950/80 text-sky-300 border border-sky-600/60'
-                    : 'text-slate-400 hover:text-slate-200 border border-transparent'
-                }`}
-              >
-                <Icon size={13} />
-                {label}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setOverlayView(bracketShown ? 'match' : 'bracket')}
+            className={`${btn} ${
+              bracketShown
+                ? 'bg-sky-500 hover:bg-sky-400 text-black border-sky-300'
+                : 'bg-[#1a1d26] hover:bg-[#232733] text-slate-200 border-[#2d3240]'
+            }`}
+            title="Turnierbaum im OBS-Overlay über das aktuelle Bild legen (Taste B)"
+          >
+            <GitBranch size={14} /> {bracketShown ? 'Turnierbaum ausblenden' : 'Turnierbaum einblenden'}
+            <kbd className="ml-1 px-1 rounded bg-black/20 font-mono text-[10px]">B</kbd>
+          </button>
+          <button
+            type="button"
+            disabled={!next || spinning}
+            onClick={advanceTournamentFocus}
+            className={`${btn} ${
+              decided && next
+                ? 'bg-amber-400 hover:bg-amber-300 text-black border-amber-300 animate-pulse-subtle'
+                : 'bg-[#1a1d26] hover:bg-[#232733] text-slate-200 border-[#2d3240]'
+            }`}
+            title="Overlay und Control-Panel auf den nächsten Schritt schalten"
+          >
+            {nextLabel ? `Weiter: ${nextLabel}` : 'Weiter'} <ArrowRight size={14} />
+          </button>
           <button type="button" className={btnNeutral} disabled={historyLength === 0} onClick={undoTournament}>
             <Undo2 size={14} /> Rückgängig {historyLength > 0 && <span className="text-slate-500">({historyLength})</span>}
           </button>
@@ -113,7 +148,7 @@ export const TournamentControl: React.FC = () => {
           {format.phases.map((def, i) => {
             const ps = tournament.phases[def.id];
             const Icon = ps.status === 'done' ? CheckCircle2 : ps.status === 'active' ? CircleDot : Circle;
-            const active = def.id === focusDef.id;
+            const active = !championFocused && def.id === focusDef.id;
             return (
               <button
                 key={def.id}
@@ -138,10 +173,14 @@ export const TournamentControl: React.FC = () => {
               </button>
             );
           })}
-          <div
-            className={`mt-1 flex items-center gap-2.5 px-3 py-2 rounded-lg ${
-              tournament.championIds ? 'text-amber-300' : 'text-slate-600'
-            }`}
+          <button
+            type="button"
+            disabled={!tournament.championIds}
+            onClick={() => setTournamentFocus(CHAMPION_FOCUS)}
+            className={`mt-1 w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left border ${
+              championFocused ? 'bg-amber-400/10 border-amber-400/60' : 'border-transparent'
+            } ${tournament.championIds ? 'text-amber-300 hover:bg-[#1a1d26]' : 'text-slate-600 cursor-default'}`}
+            title={tournament.championIds ? 'Sieger-Screen im Overlay zeigen' : undefined}
           >
             <Trophy size={16} />
             <span className="text-sm font-semibold">
@@ -149,7 +188,7 @@ export const TournamentControl: React.FC = () => {
                 ? tournament.championIds.map(id => players.get(id)?.name).join(' & ')
                 : format.championTitle}
             </span>
-          </div>
+          </button>
         </nav>
 
         <div className="flex flex-col gap-4 min-w-0">
@@ -159,6 +198,14 @@ export const TournamentControl: React.FC = () => {
               <div className="text-lg font-bold text-amber-200">
                 {format.championTitle}: {tournament.championIds.map(id => players.get(id)?.name).join(' & ')}
               </div>
+              <button
+                type="button"
+                disabled={championFocused}
+                onClick={() => setTournamentFocus(CHAMPION_FOCUS)}
+                className={`ml-auto ${btn} bg-amber-400 hover:bg-amber-300 text-black border-amber-300`}
+              >
+                <Trophy size={14} /> {championFocused ? 'Sieger-Screen läuft' : 'Sieger-Screen zeigen'}
+              </button>
             </div>
           )}
 
@@ -171,7 +218,7 @@ export const TournamentControl: React.FC = () => {
             {/* Overlay-Vorschau */}
             <section className="bg-[#12141a] border border-[#21242e] rounded-xl p-3 min-w-0 h-fit">
               <div className="flex items-center gap-2 mb-2 text-xs text-slate-400">
-                <Eye size={14} /> Overlay-Vorschau ({overlayView === 'bracket' ? 'Turnierbaum' : 'Aktuelles Match'})
+                <Eye size={14} /> Overlay-Vorschau{bracketShown && ' (Turnierbaum eingeblendet)'}
               </div>
               <ScaledStage className="w-full aspect-video rounded-lg border border-[#262a36]">
                 <TournamentStage />
@@ -384,7 +431,6 @@ const WheelControl: React.FC<{ def: WheelPhaseDef; tournament: TournamentState; 
   const spinning = spins.some(s => !isSpinRevealed(s, now));
   const done = spins.length >= def.pickCount;
   const isFocused = tournament.focus.phaseId === def.id;
-  const nextPhase = nextDraftedPhase(tournament, def.id);
 
   return (
     <div className="rounded-lg border border-[#262a36] bg-[#0e1015] p-4 flex flex-col gap-3">
@@ -408,11 +454,6 @@ const WheelControl: React.FC<{ def: WheelPhaseDef; tournament: TournamentState; 
         >
           <Dices size={16} /> {spinning ? 'Dreht …' : done ? 'Gezogen' : 'Glücksrad drehen'}
         </button>
-        {done && !spinning && nextPhase && (
-          <button type="button" className={btnNeutral} onClick={() => setTournamentFocus(nextPhase, 0)}>
-            Weiter zur nächsten Phase →
-          </button>
-        )}
       </div>
       {spins.map(s => (
         <div key={s.id} className="text-lg font-bold text-amber-300">
@@ -422,12 +463,3 @@ const WheelControl: React.FC<{ def: WheelPhaseDef; tournament: TournamentState; 
     </div>
   );
 };
-
-/** Nächste bereits geloste Phase nach `phaseId` (für "Weiter"). */
-function nextDraftedPhase(t: TournamentState, phaseId: string): string | null {
-  const f = getFormat(t.formatId);
-  if (!f) return null;
-  const idx = f.phases.findIndex(p => p.id === phaseId);
-  const next = f.phases.slice(idx + 1).find(p => t.phases[p.id].status !== 'pending');
-  return next?.id ?? null;
-}

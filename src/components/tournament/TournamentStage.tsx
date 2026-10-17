@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { Trophy } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { getFormat, TournamentFormat } from '../../formats';
-import { isPhaseRevealed, isSpinRevealed, playerMap, TournamentState } from '../../engine/tournament';
+import { CHAMPION_FOCUS, isPhaseRevealed, isSpinRevealed, playerMap, TournamentState } from '../../engine/tournament';
 import { BracketView } from './BracketView';
 import { MatchStage } from './MatchStage';
 import { WheelOfFortune } from './WheelOfFortune';
@@ -23,12 +23,35 @@ export const TournamentStage: React.FC<{ celebrate?: boolean }> = ({ celebrate =
 
   if (!tournament || !format) return <IdleScreen />;
 
-  const lastPhase = format.phases[format.phases.length - 1];
-  const championRevealed = !!tournament.championIds && isPhaseRevealed(tournament, format, lastPhase.id, now);
+  const showChampion = tournament.focus.phaseId === CHAMPION_FOCUS && !!tournament.championIds;
+  const showBracket = overlayView === 'bracket';
 
-  if (overlayView === 'bracket') return <BracketView tournament={tournament} format={format} now={now} />;
-  if (championRevealed) return <ChampionScreen tournament={tournament} format={format} celebrate={celebrate} />;
-  return <FocusView tournament={tournament} format={format} now={now} />;
+  return (
+    <div className="relative w-full h-full">
+      {/* Hauptinhalt: aktuelles Match / Rad / Sieger-Screen (gesteuert über "Weiter") */}
+      <div
+        key={showChampion ? CHAMPION_FOCUS : `${tournament.focus.phaseId}-${tournament.focus.matchIdx}`}
+        className={`absolute inset-0 animate-fade-in transition-[filter,opacity] duration-500 ${
+          showBracket ? 'opacity-30 blur-sm' : ''
+        }`}
+      >
+        {showChampion ? (
+          <ChampionScreen tournament={tournament} format={format} celebrate={celebrate && !showBracket} />
+        ) : (
+          <FocusView tournament={tournament} format={format} now={now} />
+        )}
+      </div>
+
+      {/* Turnierbaum wird über das aktuelle Bild eingeblendet */}
+      <div
+        className={`absolute inset-0 bg-[#0a0b0e]/85 backdrop-blur-sm transition-all duration-500 ${
+          showBracket ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.02] pointer-events-none'
+        }`}
+      >
+        <BracketView tournament={tournament} format={format} now={now} />
+      </div>
+    </div>
+  );
 };
 
 const FocusView: React.FC<{ tournament: TournamentState; format: TournamentFormat; now: number }> = ({

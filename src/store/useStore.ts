@@ -4,6 +4,7 @@ import { Player, ChampionPools, Match, Role, EloRating, ViewMode } from '../type
 import { getFormat, TOURNAMENT_FORMATS } from '../formats';
 import {
   createTournament,
+  nextFocus,
   rerollMatchChampions as rerollTournamentMatchChampions,
   rerollPhase as rerollTournamentPhase,
   setMatchWinner as setTournamentMatchWinner,
@@ -47,6 +48,7 @@ export interface AppState {
   startTournament: () => string | null;
   endTournament: () => void;
   setTournamentFocus: (phaseId: string, matchIdx?: number) => void;
+  advanceTournamentFocus: () => void;
   setMatchWinner: (phaseId: string, matchIdx: number, teamIdx: number) => void;
   spinWheel: (phaseId: string) => void;
   rerollTournamentPhase: (phaseId: string) => void;
@@ -150,6 +152,14 @@ export const useStore = create<AppState>()(
         if (!t) return;
         // Fokus ist reine Ansicht – kein Undo-Snapshot
         set({ tournament: { ...t, focus: { phaseId, matchIdx } } });
+      },
+
+      advanceTournamentFocus: () => {
+        const t = get().tournament;
+        const f = getFormat(t?.formatId);
+        if (!t || !f) return;
+        const focus = nextFocus(t, f);
+        if (focus) set({ tournament: { ...t, focus } });
       },
 
       setMatchWinner: (phaseId, matchIdx, teamIdx) =>

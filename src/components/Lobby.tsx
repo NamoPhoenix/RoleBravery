@@ -123,7 +123,7 @@ export const Lobby: React.FC<LobbyProps> = ({ onOpenBulkImport, onOpenJsonModal 
             {TOURNAMENT_FORMATS.map(f => (
               <ModeCard
                 key={f.id}
-                selected={selectedFormatId === f.id}
+                selected={format?.id === f.id}
                 onClick={() => setSelectedFormatId(f.id)}
                 icon={<Trophy size={20} />}
                 title={f.name}

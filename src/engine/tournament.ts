@@ -139,19 +139,33 @@ export function createTournament(format: TournamentFormat, players: Player[], po
   return progress(t, format, pools);
 }
 
-/** Erste offene Stelle im Turnier (für Auto-Fokus nach einem Sieg). */
-export function nextOpenFocus(t: TournamentState, format: TournamentFormat): TournamentState['focus'] {
-  for (const def of format.phases) {
-    const ps = t.phases[def.id];
-    if (ps.status !== 'active') continue;
-    if (def.kind === 'match') {
-      const idx = ps.matches!.findIndex(m => m.winner === null);
-      return { phaseId: def.id, matchIdx: Math.max(0, idx) };
-    }
-    return { phaseId: def.id, matchIdx: 0 };
-  }
-  const last = format.phases[format.phases.length - 1];
-  return { phaseId: last.id, matchIdx: 0 };
+/** Fokus-Wert für den Sieger-Screen (statt einer Phase). */
+export const CHAMPION_FOCUS = '__champion';
+
+/**
+ * Nächster Schritt nach dem aktuellen Fokus: nächstes Match derselben
+ * Phase, sonst die nächste bereits geloste Phase, am Ende der Sieger-Screen.
+ * Wird nur auf Knopfdruck ("Weiter") angewendet – nie automatisch.
+ */
+export function nextFocus(t: TournamentState, format: TournamentFormat): TournamentState['focus'] | null {
+  const { phaseId, matchIdx } = t.focus;
+  if (phaseId === CHAMPION_FOCUS) return null;
+  const idx = format.phases.findIndex(p => p.id === phaseId);
+  const ps = t.phases[phaseId];
+  if (ps?.matches && matchIdx + 1 < ps.matches.length) return { phaseId, matchIdx: matchIdx + 1 };
+  const next = format.phases.slice(idx + 1).find(p => t.phases[p.id].status !== 'pending');
+  if (next) return { phaseId: next.id, matchIdx: 0 };
+  if (t.championIds) return { phaseId: CHAMPION_FOCUS, matchIdx: 0 };
+  return null;
+}
+
+/** Ist der aktuell fokussierte Schritt entschieden? (dann darf "Weiter" hervorgehoben werden) */
+export function isFocusDecided(t: TournamentState, format: TournamentFormat): boolean {
+  const def = format.phases.find(p => p.id === t.focus.phaseId);
+  const ps = t.phases[t.focus.phaseId];
+  if (!def || !ps || ps.status === 'pending') return false;
+  if (def.kind === 'match') return ps.matches?.[t.focus.matchIdx]?.winner !== null;
+  return isPhaseComplete(def, ps);
 }
 
 const updatePhase = (t: TournamentState, phaseId: string, ps: PhaseState): TournamentState => ({
@@ -171,8 +185,8 @@ export function setMatchWinner(
   const match = ps?.matches?.[matchIdx];
   if (!match || match.winner !== null) return t;
   const matches = ps.matches!.map((m, i) => (i === matchIdx ? { ...m, winner: teamIdx } : m));
-  const next = progress(updatePhase(t, phaseId, { ...ps, matches }), format, pools);
-  return { ...next, focus: nextOpenFocus(next, format) };
+  // Fokus bleibt auf dem Match – weiter geht es erst per "Weiter"-Button.
+  return progress(updatePhase(t, phaseId, { ...ps, matches }), format, pools);
 }
 
 export function spinWheel(
